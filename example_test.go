@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/FATHOM5/grace-v0/backend/lockness"
+	"github.com/FATHOM5/lockness"
 )
 
 // ExampleLLRequest_Progress demonstrates a simple use of LLReq Progress function
