@@ -1,13 +1,34 @@
-// Package lockness implementes facilities for a Golang manager
-// for Learning Locker
-// Testing LL_API_KEY: 2c617bb5701e0a67b54252110f0ddf11672b4820
-// Testing LL_API_SECRET: e1900213b5e375b3c3f3e054b1e12d8f534b8c8c
+// Package lockness implements facilities for a Golang controller for
+// a Learning Locker instance.
+//
+// The design expects a user to create a new LLRequest Object that gets several
+// config parameters from a YAML file and the API key and API secret from environment
+// variables. This ensures that the config file can be stored in version control without
+// leaking secrets. Use this template for config files that can be
+// parsed by this learning locker controller:
+//
+// llcfg.yml
+// ---
+// llIP: gracev0_learninglocker:8081
+// userReqString: http://%s/data/xAPI/statements?agent=%%7B%%22mbox%%22%%3A%%20%%22mailto%%3A%s%%40grace.co%%22%%7D
+// llPostString: http://%s/data/xAPI/statements
+// llAPIVersion: 1.0.3
+//
+// Environment variables required to create a new LLRequest are:
+// 		LL_API_KEY
+//		LL_API_SECRET
+//
+// Some keys to use for learning locker testing are:
+// 		Testing LL_API_KEY: 2c617bb5701e0a67b54252110f0ddf11672b4820
+// 		Testing LL_API_SECRET: e1900213b5e375b3c3f3e054b1e12d8f534b8c8c
+//
 package lockness
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -140,6 +161,42 @@ func NewLLRequest(config string, modules string) (*LLRequest, *JSONDB) {
 	return &llReq, &modulesDB
 }
 
+// NewLLReaderRequest returns a pointer to a new LLRequest based of of an io.Reader passed
+// into the function.  This format differs from the original implementation that required
+// a filename because it allows for easier testing since config paramaters do not have
+// to be stored on disk.  In production, when there is a config file saved on disk an
+// io.Reader that points to this file can easily be passed into the function.
+func NewLLReaderRequest(config io.Reader) *LLRequest {
+	var llreq = LLRequest{}
+
+	yamlFile, err := ioutil.ReadAll(config)
+	if err != nil {
+		llreq.Err = err
+		return &llreq
+	}
+
+	// Unmarshal the contents of the config file.  See the package comment for the yaml file
+	// template that can be unmarshalled by this package.
+	err = yaml.Unmarshal(yamlFile, &llreq)
+	if err != nil {
+		llreq.Err = err
+		return &llreq
+	}
+
+	key, keyOK := os.LookupEnv("LL_API_KEY")
+	secret, secretOK := os.LookupEnv("LL_API_SECRET")
+
+	if !keyOK || !secretOK {
+		llreq.Err = fmt.Errorf("missing environment variable for LL_API_KEY or LL_API_SECRET")
+		return &llreq
+	}
+
+	llreq.LLApiKey = key
+	llreq.LLSecretKey = secret
+
+	return &llreq
+}
+
 func getRequest(config string) LLRequest {
 
 	var llReq LLRequest
@@ -251,16 +308,24 @@ func (llr *LLRequest) Progress(username string, db *JSONDB) (ProgressData, error
 
 }
 
-// MentorURL returns the Learning Locker url for retrieving data for all users
+// MentorURL returns the Learning Locker url for retrieving data for all users.
+// This method is DEPRECATED and should be refactored to usse the PostURL() method
+// which only returns a single string intead of the tuple returned here.
 func (llr *LLRequest) MentorURL() string {
 	url := fmt.Sprintf(llr.PostString, llr.LearningLockerIP)
 	return url
 }
 
-// Mentor requests all Learning Locker data. The API call will return the first 100 statements,
-// If there are more than 100, the json response will have a 'more' link that contains the next 100.
-// The function will loop everytime there is a 'more' link, make a new API call and combine all the data.
-// The function will stop looping when 'more' contains no link.
+// PostURL returns the learning locker request object's URL for making post requests.
+func (llr *LLRequest) PostURL() string {
+	return llr.PostURL()
+}
+
+// Mentor requests all Learning Locker data. The API call will return the first 100
+// statements. If there are more than 100, the json response will have a 'more' link
+// that contains the next 100.
+// The function will loop everytime there is a 'more' link, make a new API call and
+// combine all the data. The function will stop looping when 'more' contains no link.
 func (llr *LLRequest) Mentor(db *JSONDB) (MentorData, error) {
 
 	var statements Statements
