@@ -1,6 +1,9 @@
 // Package lockness implements facilities for a Golang controller for
 // a Learning Locker instance.
 //
+// Go 1.13 required.  Uses the new %w verb for wrapping an error when
+// constructing a NewLLReaderRequest.
+//
 // The design expects a user to create a new LLRequest Object that gets several
 // config parameters from a YAML file and the API key and API secret from environment
 // variables. This ensures that the config file can be stored in version control without
@@ -166,6 +169,9 @@ func NewLLRequest(config string, modules string) (*LLRequest, *JSONDB) {
 // a filename because it allows for easier testing since config paramaters do not have
 // to be stored on disk.  In production, when there is a config file saved on disk an
 // io.Reader that points to this file can easily be passed into the function.
+// Any errors generated when creating the request are returned in the LLRequest.Err field.
+// Requires Go 1.13 because it takes advantage of the %w wrap verb to fmt.Errorf when
+// a yaml struct unmarshal cannot be accomplished.
 func NewLLReaderRequest(config io.Reader) *LLRequest {
 	var llreq = LLRequest{}
 
@@ -177,9 +183,9 @@ func NewLLReaderRequest(config io.Reader) *LLRequest {
 
 	// Unmarshal the contents of the config file.  See the package comment for the yaml file
 	// template that can be unmarshalled by this package.
-	err = yaml.Unmarshal(yamlFile, &llreq)
+	err = yaml.UnmarshalStrict(yamlFile, &llreq)
 	if err != nil {
-		llreq.Err = err
+		llreq.Err = fmt.Errorf("unmarshal strict error parsing learning locker config: %w", err)
 		return &llreq
 	}
 
