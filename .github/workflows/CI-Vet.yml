@@ -1,12 +1,9 @@
 name: Go
-on:
-  push:
-    branches:
-      - master
-
+on: [push]
 jobs:
-   build:
-    name: Build
+
+  build:
+    name: CI
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
